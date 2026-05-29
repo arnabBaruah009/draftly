@@ -1,18 +1,15 @@
+"""Pydantic schemas for API request/response payloads."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.domain import AuditAction, DraftStatus
+
 
 class EmailSummary(BaseModel):
-    """Lightweight representation of a Gmail message.
-
-    Only the fields needed to render an inbox list. Heavier fields like the
-    full body are intentionally omitted to keep the payload small; a separate
-    endpoint can be added later to fetch a single message's full content.
-    """
-
     id: str = Field(..., description="Gmail message ID")
     thread_id: str = Field(..., description="Gmail thread ID")
     subject: str | None = Field(None, description="Message subject")
@@ -35,20 +32,38 @@ class EmailSummary(BaseModel):
     is_unread: bool = Field(
         False, description="True when the UNREAD label is set"
     )
+    draft_id: str | None = Field(
+        None, description="Associated AI draft ID if one exists"
+    )
+    draft_status: DraftStatus | None = Field(
+        None, description="Status of the associated draft"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class EmailDetail(EmailSummary):
+    body: str | None = None
+    thread_messages: list["ThreadMessage"] = Field(default_factory=list)
+
+
+class ThreadMessage(BaseModel):
+    id: str
+    from_: str | None = Field(None, alias="from")
+    to: str | None = None
+    subject: str | None = None
+    body: str | None = None
+    date: datetime | None = None
 
     model_config = {"populate_by_name": True}
 
 
 class MessagesResponse(BaseModel):
-    """Response payload for the messages list endpoint."""
-
     count: int = Field(..., description="Number of messages returned")
     messages: list[EmailSummary]
 
 
 class TokenInfo(BaseModel):
-    """Subset of fields returned by Google's tokeninfo endpoint."""
-
     email: str | None = None
     scope: str | None = None
     expires_in: int | None = Field(None, alias="expires_in")
@@ -56,3 +71,63 @@ class TokenInfo(BaseModel):
     user_id: str | None = None
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class UserSyncRequest(BaseModel):
+    refresh_token: str | None = None
+    name: str | None = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str | None = None
+    current_prompt: str
+    writing_style: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpdatePromptRequest(BaseModel):
+    current_prompt: str = Field(..., min_length=1, max_length=4000)
+    writing_style: str | None = Field(None, max_length=2000)
+
+
+class DraftResponse(BaseModel):
+    id: str
+    user_id: str
+    email_id: str
+    thread_id: str
+    generated_body: str
+    generated_subject: str | None = None
+    to: str | None = None
+    status: DraftStatus
+    approved_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DraftListResponse(BaseModel):
+    count: int
+    drafts: list[DraftResponse]
+
+
+class EditDraftRequest(BaseModel):
+    generated_body: str = Field(..., min_length=1)
+    generated_subject: str | None = None
+
+
+class AuditLogResponse(BaseModel):
+    id: str
+    user_id: str
+    draft_id: str | None = None
+    email_id: str | None = None
+    action: AuditAction
+    subject: str | None = None
+    body_snapshot: str | None = None
+    created_at: datetime
+
+
+class AuditSearchResponse(BaseModel):
+    count: int
+    logs: list[AuditLogResponse]

@@ -63,7 +63,7 @@ _bearer_scheme = HTTPBearer(
     bearerFormat="Google OAuth2 access token",
     description=(
         "Google OAuth2 access token (obtained on the frontend via the Google "
-        "OAuth flow). Must have the gmail.readonly scope."
+        "OAuth flow). Must have the gmail.modify scope."
     ),
     auto_error=True,
 )

@@ -1,5 +1,9 @@
 import "server-only"
 
+import { backendFetch } from "@/src/lib/api"
+
+export type DraftStatus = "pending" | "approved" | "rejected" | "sent"
+
 export type EmailSummary = {
     id: string
     thread_id: string
@@ -10,6 +14,22 @@ export type EmailSummary = {
     date: string | null
     label_ids: string[]
     is_unread: boolean
+    draft_id: string | null
+    draft_status: DraftStatus | null
+}
+
+export type ThreadMessage = {
+    id: string
+    from: string | null
+    to: string | null
+    subject: string | null
+    body: string | null
+    date: string | null
+}
+
+export type EmailDetail = EmailSummary & {
+    body: string | null
+    thread_messages: ThreadMessage[]
 }
 
 export type FetchEmailsResult =
@@ -28,17 +48,6 @@ type MessagesResponse = {
     messages: EmailSummary[]
 }
 
-function getBackendUrl(): string {
-    const url = process.env.BACKEND_URL
-    if (!url) {
-        throw new Error(
-            "BACKEND_URL is not set. Add it to your .env file " +
-                "(e.g. BACKEND_URL=http://localhost:8000).",
-        )
-    }
-    return url.replace(/\/+$/, "")
-}
-
 /**
  * Fetch the latest emails from the Draftly FastAPI backend.
  *
@@ -47,55 +56,29 @@ function getBackendUrl(): string {
  */
 export async function fetchLatestEmails(
     accessToken: string,
-    options: { limit?: number; signal?: AbortSignal } = {},
+    options: { limit?: number } = {},
 ): Promise<FetchEmailsResult> {
-    const { limit = 10, signal } = options
-
-    let response: Response
-    try {
-        response = await fetch(
-            `${getBackendUrl()}/api/gmail/messages?limit=${limit}`,
-            {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    Accept: "application/json",
-                },
-                // The inbox should always reflect the latest state - never
-                // cache this between requests or users.
-                cache: "no-store",
-                signal,
-            },
-        )
-    } catch (error) {
-        return {
-            ok: false,
-            status: 0,
-            error:
-                error instanceof Error
-                    ? `Could not reach the Draftly backend: ${error.message}`
-                    : "Could not reach the Draftly backend.",
-            needsReauth: false,
-        }
+    const { limit = 10 } = options
+    const result = await backendFetch<MessagesResponse>(
+        `/api/gmail/messages?limit=${limit}`,
+        accessToken,
+    )
+    if (!result.ok) {
+        return result
     }
-
-    if (!response.ok) {
-        let detail: string | undefined
-        try {
-            const body = (await response.json()) as { detail?: string }
-            detail = body.detail
-        } catch {
-            // Body wasn't JSON - fall through with a generic message.
-        }
-
-        return {
-            ok: false,
-            status: response.status,
-            error: detail ?? `Backend returned ${response.status}.`,
-            needsReauth: response.status === 401 || response.status === 403,
-        }
+    return {
+        ok: true,
+        messages: result.data.messages,
+        count: result.data.count,
     }
+}
 
-    const data = (await response.json()) as MessagesResponse
-    return { ok: true, messages: data.messages, count: data.count }
+export async function fetchEmailDetail(
+    accessToken: string,
+    messageId: string,
+) {
+    return backendFetch<EmailDetail>(
+        `/api/gmail/messages/${messageId}`,
+        accessToken,
+    )
 }

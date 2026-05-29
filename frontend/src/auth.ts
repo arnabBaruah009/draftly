@@ -2,7 +2,7 @@ import NextAuth, { type DefaultSession } from "next-auth"
 import type { JWT } from "next-auth/jwt"
 import Google from "next-auth/providers/google"
 
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 
 // --- Module augmentation ----------------------------------------------------
 // Surface the Google access token (and any auth errors) on `session` and the
@@ -11,6 +11,7 @@ const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 declare module "next-auth" {
     interface Session {
         accessToken?: string
+        refreshToken?: string
         error?: "RefreshAccessTokenError"
         user: {
             id?: string
@@ -131,6 +132,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
         async session({ session, token }) {
             session.accessToken = token.accessToken
+            session.refreshToken = token.refreshToken
             session.error = token.error
             if (token.sub) {
                 session.user.id = token.sub

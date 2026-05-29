@@ -8,12 +8,11 @@ google-api-python-client
 google-auth
 
 openai
+anthropic
+google-generativeai
 
-langchain
-
-chromadb
-
-sentence-transformers
-
-sqlalchemy
-psycopg2-binary
+motor
+pymongo
+redis
+celery
+pinecone
