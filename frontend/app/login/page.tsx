@@ -1,4 +1,4 @@
-import { signIn } from "@/src/auth"
+import { signInGoogleAction } from "@/src/actions/auth"
 
 export default function LoginPage() {
   return (
@@ -13,13 +13,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form
-          action={async () => {
-            "use server"
-            await signIn("google", { redirectTo: "/" })
-          }}
-          className="mt-8"
-        >
+        <form action={signInGoogleAction} className="mt-8">
           <button
             type="submit"
             className="flex h-11 w-full items-center justify-center gap-3 rounded-full border border-black/[.08] bg-white px-5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-[#1a1a1a]"

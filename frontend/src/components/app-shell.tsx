@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-import { auth, signIn, signOut } from "@/src/auth"
+import { signInGoogleAction, signOutAction } from "@/src/actions/auth"
+import { auth } from "@/src/auth"
 import { syncUser } from "@/src/lib/user"
 
 export async function ensureAuthenticatedSession() {
@@ -94,19 +95,7 @@ export function PageHeader({
                     <span className="text-sm text-zinc-600 dark:text-zinc-400">
                         {displayName}
                     </span>
-                    <form
-                        action={async () => {
-                            "use server"
-                            const session = await auth()
-                            if (session?.accessToken && !session.error) {
-                                const { logoutUser } = await import(
-                                    "@/src/lib/user"
-                                )
-                                await logoutUser(session.accessToken)
-                            }
-                            await signOut({ redirectTo: "/login" })
-                        }}
-                    >
+                    <form action={signOutAction}>
                         <button
                             type="submit"
                             className="flex h-9 items-center justify-center rounded-full border border-black/[.08] bg-white px-4 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-[#1a1a1a]"
@@ -140,12 +129,7 @@ export function ErrorPanel({
             </p>
             {needsReauth ? (
                 <div className="mt-5 flex justify-center">
-                    <form
-                        action={async () => {
-                            "use server"
-                            await signIn("google", { redirectTo: "/" })
-                        }}
-                    >
+                    <form action={signInGoogleAction}>
                         <button
                             type="submit"
                             className="flex h-10 items-center justify-center rounded-full bg-black px-4 text-sm font-medium text-white transition-colors hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/85"
