@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from app.repositories.draft import DraftRepository
 from app.repositories.email_record import EmailRecordRepository
@@ -31,7 +32,12 @@ class EmailProcessor:
         self._ai = ai_service
         self._embeddings = embedding_service
 
-    async def process_user_inbox(self, user_id: str) -> int:
+    async def process_user_inbox(
+        self,
+        user_id: str,
+        *,
+        received_after: datetime | None = None,
+    ) -> int:
         access_token = await self._users.get_valid_access_token(user_id)
         if not access_token:
             logger.warning("No valid access token for user %s", user_id)
@@ -42,7 +48,10 @@ class EmailProcessor:
             return 0
 
         gmail = GmailService(access_token)
-        messages = await gmail.list_relevant_unread(limit=20)
+        messages = await gmail.list_relevant_unread(
+            limit=50,
+            received_after=received_after,
+        )
         processed = 0
 
         for summary in messages:

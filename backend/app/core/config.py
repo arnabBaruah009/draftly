@@ -39,7 +39,8 @@ class Settings(BaseSettings):
 
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
-    email_poll_interval_seconds: int = 120
+    email_poll_interval_seconds: int = 300
+    email_sync_lookback_seconds: int = 360
 
     google_client_id: str = ""
     google_client_secret: str = ""

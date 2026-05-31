@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from app.core.config import get_settings
 from app.core.database import get_database
@@ -36,24 +37,39 @@ def _build_processor() -> EmailProcessor:
 
 
 @celery_app.task(name="app.tasks.email_monitor.process_user_inbox")
-def process_user_inbox(user_id: str) -> int:
+def process_user_inbox(
+    user_id: str,
+    received_after_epoch: int | None = None,
+) -> int:
+    received_after = None
+    if received_after_epoch is not None:
+        received_after = datetime.fromtimestamp(
+            received_after_epoch,
+            tz=timezone.utc,
+        )
     processor = _build_processor()
-    return _run_async(processor.process_user_inbox(user_id))
+    return _run_async(
+        processor.process_user_inbox(
+            user_id,
+            received_after=received_after,
+        )
+    )
 
 
 @celery_app.task(name="app.tasks.email_monitor.poll_all_user_inboxes")
 def poll_all_user_inboxes() -> dict[str, int]:
+    settings = get_settings()
+    received_after = datetime.now(timezone.utc) - timedelta(
+        seconds=settings.email_sync_lookback_seconds,
+    )
+    received_after_epoch = int(received_after.timestamp())
+
     async def _poll() -> dict[str, int]:
         db = get_database()
         user_repo = UserRepository(db)
         users = await user_repo.list_all()
-        total = 0
         for user in users:
-            try:
-                count = await _build_processor().process_user_inbox(user.id)
-                total += count
-            except Exception:
-                logger.exception("Failed to process inbox for user %s", user.id)
-        return {"users": len(users), "processed": total}
+            process_user_inbox.delay(user.id, received_after_epoch)
+        return {"users": len(users), "dispatched": len(users)}
 
     return _run_async(_poll())

@@ -39,6 +39,18 @@ SENT_EMAIL_QUERY = (
 )
 
 
+def build_relevant_email_query(*, received_after: datetime | None = None) -> str:
+    """Build Gmail search query, optionally scoped to messages after a timestamp.
+
+    Gmail's ``after:`` operator accepts Unix seconds for sub-day precision
+    (see https://developers.google.com/workspace/gmail/api/guides/filtering).
+    """
+    if received_after is None:
+        return RELEVANT_EMAIL_QUERY
+    after_ts = int(received_after.timestamp())
+    return f"{RELEVANT_EMAIL_QUERY} after:{after_ts}"
+
+
 def _build_gmail_service(access_token: str):
     credentials = Credentials(token=access_token)
     return build(
@@ -423,13 +435,17 @@ class GmailService:
         return summaries
 
     async def list_relevant_unread(
-        self, limit: int = 20
+        self,
+        limit: int = 20,
+        *,
+        received_after: datetime | None = None,
     ) -> list[EmailSummary]:
+        query = build_relevant_email_query(received_after=received_after)
         raw_messages = await self._run_sync(
             _list_and_fetch_messages_sync,
             self._access_token,
             limit,
-            RELEVANT_EMAIL_QUERY,
+            query,
         )
         return [
             _parse_message(msg)
