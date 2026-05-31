@@ -495,7 +495,13 @@ class GmailService:
             )
         return details
 
-    async def get_message_detail(self, message_id: str) -> EmailDetail:
+    async def get_message_detail(
+        self,
+        message_id: str,
+        *,
+        draft_repo: DraftRepository | None = None,
+        user_id: str | None = None,
+    ) -> EmailDetail:
         message = await self._run_sync(
             _get_message_full_sync, self._access_token, message_id
         )
@@ -508,8 +514,20 @@ class GmailService:
             for msg in thread.get("messages", []) or []
         ]
 
+        draft_id = None
+        draft_status = None
+        if draft_repo and user_id:
+            draft = await draft_repo.find_by_email_id(user_id, message_id)
+            if draft:
+                draft_id = draft.id
+                draft_status = draft.status
+
         payload = message.get("payload", {}) or {}
-        summary = _parse_message(message)
+        summary = _parse_message(
+            message,
+            draft_id=draft_id,
+            draft_status=draft_status,
+        )
         return EmailDetail(
             **summary.model_dump(by_alias=True),
             body=_extract_body(payload),

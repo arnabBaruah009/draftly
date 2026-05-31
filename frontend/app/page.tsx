@@ -42,7 +42,7 @@ export default async function Home() {
                     displayName={displayName}
                 />
 
-                {!tokenError && session.accessToken ? (
+                {/* {!tokenError && session.accessToken ? (
                     <form action={syncInboxAction} className="mb-6">
                         <button
                             type="submit"
@@ -64,7 +64,7 @@ export default async function Home() {
                             Review drafts
                         </Link>
                     </div>
-                ) : null}
+                ) : null} */}
 
                 <Body tokenError={tokenError} result={result} />
             </div>

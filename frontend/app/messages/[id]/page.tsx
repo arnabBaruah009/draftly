@@ -1,13 +1,16 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { DraftReviewPanel } from "@/app/drafts/[id]/draft-review-panel"
 import {
     ErrorPanel,
     PageHeader,
     formatDate,
     parseSender,
+    statusBadge,
     syncUserWithBackend,
 } from "@/src/components/app-shell"
+import { fetchDraft } from "@/src/lib/drafts"
 import { fetchEmailDetail } from "@/src/lib/gmail"
 
 export default async function MessageDetailPage({
@@ -54,6 +57,9 @@ export default async function MessageDetailPage({
 
     const message = result.data
     const sender = parseSender(message.from)
+    const draftResult = message.draft_id
+        ? await fetchDraft(session.accessToken, message.draft_id)
+        : null
 
     return (
         <div className="flex flex-1 bg-zinc-50 px-6 py-10 dark:bg-black">
@@ -108,16 +114,32 @@ export default async function MessageDetailPage({
                     </section>
                 ) : null}
 
-                {message.draft_id ? (
-                    <div className="mt-6">
-                        <Link
-                            href={`/drafts/${message.draft_id}`}
-                            className="inline-flex rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
-                        >
-                            Review AI draft
-                        </Link>
-                    </div>
-                ) : null}
+                <section className="mt-8">
+                    <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                        AI draft reply
+                    </h2>
+                    {message.draft_id && draftResult?.ok ? (
+                        <div className="space-y-4">
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-600 dark:text-zinc-400">
+                                {statusBadge(draftResult.data.status)}
+                                {draftResult.data.to ? (
+                                    <span>To: {draftResult.data.to}</span>
+                                ) : null}
+                            </div>
+                            <DraftReviewPanel draft={draftResult.data} />
+                        </div>
+                    ) : message.draft_id && draftResult && !draftResult.ok ? (
+                        <ErrorPanel
+                            title="Couldn't load draft"
+                            message={draftResult.error}
+                            needsReauth={draftResult.needsReauth}
+                        />
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-black/[.08] bg-white p-6 text-sm text-zinc-600 dark:border-white/[.145] dark:bg-zinc-950 dark:text-zinc-400">
+                            No AI draft has been generated for this message yet.
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     )

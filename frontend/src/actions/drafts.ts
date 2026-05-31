@@ -19,12 +19,18 @@ async function requireToken() {
     return session.accessToken
 }
 
+function revalidateDraftPaths(draft: { id: string; email_id: string }) {
+    revalidatePath("/")
+    revalidatePath("/drafts")
+    revalidatePath(`/drafts/${draft.id}`)
+    revalidatePath(`/messages/${draft.email_id}`)
+}
+
 export async function approveDraftAction(draftId: string) {
     const token = await requireToken()
     const result = await approveDraft(token, draftId)
     if (!result.ok) throw new Error(result.error)
-    revalidatePath("/drafts")
-    revalidatePath(`/drafts/${draftId}`)
+    revalidateDraftPaths(result.data)
     return result.data
 }
 
@@ -32,8 +38,7 @@ export async function rejectDraftAction(draftId: string) {
     const token = await requireToken()
     const result = await rejectDraft(token, draftId)
     if (!result.ok) throw new Error(result.error)
-    revalidatePath("/drafts")
-    revalidatePath(`/drafts/${draftId}`)
+    revalidateDraftPaths(result.data)
     return result.data
 }
 
@@ -41,8 +46,7 @@ export async function regenerateDraftAction(draftId: string) {
     const token = await requireToken()
     const result = await regenerateDraft(token, draftId)
     if (!result.ok) throw new Error(result.error)
-    revalidatePath("/drafts")
-    revalidatePath(`/drafts/${draftId}`)
+    revalidateDraftPaths(result.data)
     return result.data
 }
 
@@ -57,8 +61,7 @@ export async function editDraftAction(
         generated_subject: subject,
     })
     if (!result.ok) throw new Error(result.error)
-    revalidatePath("/drafts")
-    revalidatePath(`/drafts/${draftId}`)
+    revalidateDraftPaths(result.data)
     return result.data
 }
 

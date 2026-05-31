@@ -77,9 +77,15 @@ async def list_messages(
 async def get_message(
     message_id: str,
     credentials: GoogleCredentialsDep,
+    user: CurrentUserDep,
+    draft_repo: Annotated[DraftRepository, Depends(get_draft_repository)],
 ) -> EmailDetail:
     service = GmailService(access_token=credentials.access_token)
-    return await service.get_message_detail(message_id)
+    return await service.get_message_detail(
+        message_id,
+        draft_repo=draft_repo,
+        user_id=user.id,
+    )
 
 
 @router.post(

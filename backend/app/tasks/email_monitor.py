@@ -21,7 +21,23 @@ logger = logging.getLogger(__name__)
 
 
 def _run_async(coro):
-    return asyncio.run(coro)
+    """Run async code in a Celery worker without leaking closed event loops.
+
+    Motor and redis-py bind to the active asyncio loop. Celery tasks call
+    ``asyncio.run`` per invocation, so module-level clients must be reset
+    after each run or the next task hits ``RuntimeError: Event loop is closed``.
+    """
+    from app.core.database import close_database
+    from app.core.redis import close_redis
+
+    async def _wrapper():
+        try:
+            return await coro
+        finally:
+            await close_database()
+            await close_redis()
+
+    return asyncio.run(_wrapper())
 
 
 def _build_processor() -> EmailProcessor:
@@ -47,13 +63,14 @@ def process_user_inbox(
             received_after_epoch,
             tz=timezone.utc,
         )
-    processor = _build_processor()
-    return _run_async(
-        processor.process_user_inbox(
+    async def _process() -> int:
+        processor = _build_processor()
+        return await processor.process_user_inbox(
             user_id,
             received_after=received_after,
         )
-    )
+
+    return _run_async(_process())
 
 
 @celery_app.task(name="app.tasks.email_monitor.poll_all_user_inboxes")

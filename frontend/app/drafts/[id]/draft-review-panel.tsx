@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState, useTransition } from "react"
 
 import {
     approveDraftAction,
@@ -11,9 +12,14 @@ import {
 import type { Draft } from "@/src/lib/drafts"
 
 export function DraftReviewPanel({ draft }: { draft: Draft }) {
+    const router = useRouter()
     const [body, setBody] = useState(draft.generated_body)
     const [message, setMessage] = useState<string | null>(null)
     const [isPending, startTransition] = useTransition()
+
+    useEffect(() => {
+        setBody(draft.generated_body)
+    }, [draft.generated_body, draft.status])
 
     const run = (action: () => Promise<unknown>, success: string) => {
         setMessage(null)
@@ -21,6 +27,7 @@ export function DraftReviewPanel({ draft }: { draft: Draft }) {
             try {
                 await action()
                 setMessage(success)
+                router.refresh()
             } catch (error) {
                 setMessage(
                     error instanceof Error ? error.message : "Action failed",
