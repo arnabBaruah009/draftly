@@ -87,7 +87,7 @@ export function DraftReviewPanel({ draft }: { draft: Draft }) {
                             "Reply sent via Gmail.",
                         )
                     }
-                    className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50 dark:bg-white dark:text-black"
+                    className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white cursor-pointer hover:bg-white/85 disabled:opacity-50 dark:bg-white dark:text-black"
                 >
                     Approve & send
                 </button>
@@ -100,7 +100,7 @@ export function DraftReviewPanel({ draft }: { draft: Draft }) {
                             "Draft rejected.",
                         )
                     }
-                    className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+                    className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-700 cursor-pointer hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
                 >
                     Reject
                 </button>
@@ -115,7 +115,7 @@ export function DraftReviewPanel({ draft }: { draft: Draft }) {
                             setBody(updated.generated_body)
                         }, "New draft generated.")
                     }
-                    className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
+                    className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium cursor-pointer hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
                 >
                     Regenerate
                 </button>
