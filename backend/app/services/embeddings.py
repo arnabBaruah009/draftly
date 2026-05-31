@@ -1,4 +1,4 @@
-"""Pinecone vector store for email embeddings."""
+"""Pinecone vector store for email embeddings via OpenRouter."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 
-from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 
 from app.core.config import Settings, get_settings
+from app.services.openrouter import get_openrouter_client
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,11 @@ def _embedding_id(user_id: str, email_id: str) -> str:
 
 
 class EmbeddingService:
-    """Generate embeddings and store them in Pinecone."""
+    """Generate embeddings through OpenRouter and store them in Pinecone."""
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
-        self._openai = OpenAI(api_key=self._settings.openai_api_key)
+        self._client = get_openrouter_client()
 
     def _ensure_index(self):
         global _pinecone_client, _index
@@ -57,7 +57,11 @@ class EmbeddingService:
         return _index
 
     def embed_text(self, text: str) -> list[float]:
-        response = self._openai.embeddings.create(
+        if not self._settings.openai_api_key:
+            logger.warning("OpenRouter API key not configured; skipping embedding")
+            return []
+
+        response = self._client.embeddings.create(
             model=self._settings.openai_embedding_model,
             input=text[:8000],
         )
@@ -78,6 +82,9 @@ class EmbeddingService:
 
         content = f"Subject: {subject or ''}\n\n{body}"
         vector = self.embed_text(content)
+        if not vector:
+            return None
+
         vector_id = _embedding_id(user_id, email_id)
 
         index.upsert(
@@ -109,6 +116,9 @@ class EmbeddingService:
             return []
 
         vector = self.embed_text(query)
+        if not vector:
+            return []
+
         results = index.query(
             vector=vector,
             top_k=top_k,

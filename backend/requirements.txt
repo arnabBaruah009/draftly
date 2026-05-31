@@ -8,8 +8,6 @@ google-api-python-client
 google-auth
 
 openai
-anthropic
-google-generativeai
 
 motor
 pymongo

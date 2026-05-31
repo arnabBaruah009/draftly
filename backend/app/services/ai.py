@@ -1,4 +1,4 @@
-"""LLM-powered email reply generation."""
+"""LLM-powered email reply generation via OpenRouter."""
 
 from __future__ import annotations
 
@@ -6,15 +6,17 @@ import logging
 
 from app.core.config import Settings, get_settings
 from app.schemas.email import ThreadMessage
+from app.services.openrouter import get_openrouter_client
 
 logger = logging.getLogger(__name__)
 
 
 class AIService:
-    """Generate contextual email replies using configured LLM provider."""
+    """Generate contextual email replies using OpenRouter."""
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
+        self._client = get_openrouter_client()
 
     def _format_thread(self, messages: list[ThreadMessage]) -> str:
         parts: list[str] = []
@@ -53,18 +55,12 @@ class AIService:
             "Write a reply to the most recent message."
         )
 
-        provider = self._settings.llm_provider.lower()
-        if provider == "anthropic":
-            return self._generate_anthropic(system, user_content)
-        if provider == "gemini":
-            return self._generate_gemini(system, user_content)
-        return self._generate_openai(system, user_content)
+        if not self._settings.openai_api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not set. Add your OpenRouter API key to .env."
+            )
 
-    def _generate_openai(self, system: str, user_content: str) -> str:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=self._settings.openai_api_key)
-        response = client.chat.completions.create(
+        response = self._client.chat.completions.create(
             model=self._settings.openai_model,
             messages=[
                 {"role": "system", "content": system},
@@ -73,31 +69,3 @@ class AIService:
             temperature=0.7,
         )
         return (response.choices[0].message.content or "").strip()
-
-    def _generate_anthropic(self, system: str, user_content: str) -> str:
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=self._settings.anthropic_api_key)
-        response = client.messages.create(
-            model=self._settings.anthropic_model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        parts = [
-            block.text
-            for block in response.content
-            if hasattr(block, "text")
-        ]
-        return "\n".join(parts).strip()
-
-    def _generate_gemini(self, system: str, user_content: str) -> str:
-        import google.generativeai as genai
-
-        genai.configure(api_key=self._settings.gemini_api_key)
-        model = genai.GenerativeModel(
-            model_name=self._settings.gemini_model,
-            system_instruction=system,
-        )
-        response = model.generate_content(user_content)
-        return (response.text or "").strip()

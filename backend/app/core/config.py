@@ -47,14 +47,13 @@ class Settings(BaseSettings):
     pinecone_cloud: str = "aws"
     pinecone_region: str = "us-east-1"
 
-    llm_provider: str = "openai"
+    # OpenRouter (OpenAI-compatible). Use prefixed model slugs, e.g. openai/gpt-4o-mini
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-3-5-haiku-20241022"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
-    openai_embedding_model: str = "text-embedding-3-small"
+    openai_base_url: str = "https://openrouter.ai/api/v1"
+    openai_model: str = "openai/gpt-4o-mini"
+    openai_embedding_model: str = "openai/text-embedding-3-small"
+    openrouter_site_url: str = "http://localhost:3000"
+    openrouter_app_name: str = "Draftly"
 
 
 @lru_cache
