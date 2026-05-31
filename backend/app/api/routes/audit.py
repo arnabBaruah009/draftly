@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import CurrentUserDep, get_audit_repository
+from app.core.config import Settings, get_settings
 from app.repositories.audit import AuditRepository
 from app.schemas.email import AuditLogResponse, AuditSearchResponse
 
@@ -22,17 +23,24 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 async def search_audit_logs(
     user: CurrentUserDep,
     audit_repo: Annotated[AuditRepository, Depends(get_audit_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
     subject: str | None = Query(default=None),
     start_date: datetime | None = Query(default=None),
     end_date: datetime | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=None, ge=1),
+    cursor: str | None = Query(default=None),
 ) -> AuditSearchResponse:
-    logs = await audit_repo.search(
+    effective_limit = min(
+        limit or settings.default_page_size,
+        settings.max_page_size,
+    )
+    logs, next_cursor, has_more = await audit_repo.search(
         user.id,
         subject=subject,
         start_date=start_date,
         end_date=end_date,
-        limit=limit,
+        limit=effective_limit,
+        cursor=cursor,
     )
     return AuditSearchResponse(
         count=len(logs),
@@ -49,4 +57,6 @@ async def search_audit_logs(
             )
             for log in logs
         ],
+        next_cursor=next_cursor,
+        has_more=has_more,
     )

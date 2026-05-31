@@ -61,6 +61,12 @@ class ThreadMessage(BaseModel):
 class MessagesResponse(BaseModel):
     count: int = Field(..., description="Number of messages returned")
     messages: list[EmailSummary]
+    next_page_token: str | None = Field(
+        None, description="Gmail page token for the next page"
+    )
+    has_more: bool = Field(
+        False, description="True when more messages can be loaded"
+    )
 
 
 class TokenInfo(BaseModel):
@@ -110,6 +116,12 @@ class DraftResponse(BaseModel):
 class DraftListResponse(BaseModel):
     count: int
     drafts: list[DraftResponse]
+    next_cursor: str | None = None
+    has_more: bool = False
+
+
+class DraftCountResponse(BaseModel):
+    count: int
 
 
 class EditDraftRequest(BaseModel):
@@ -131,3 +143,5 @@ class AuditLogResponse(BaseModel):
 class AuditSearchResponse(BaseModel):
     count: int
     logs: list[AuditLogResponse]
+    next_cursor: str | None = None
+    has_more: bool = False

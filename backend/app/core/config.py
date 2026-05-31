@@ -27,8 +27,10 @@ class Settings(BaseSettings):
         "https://www.googleapis.com/auth/gmail.modify"
     )
 
-    default_message_limit: int = 10
+    default_message_limit: int = 25
     max_message_limit: int = 50
+    default_page_size: int = 25
+    max_page_size: int = 50
     max_sent_backfill: int = 500
     style_context_top_k: int = 5
 

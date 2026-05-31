@@ -21,15 +21,29 @@ export type Draft = {
 export type DraftListResponse = {
     count: number
     drafts: Draft[]
+    next_cursor: string | null
+    has_more: boolean
+}
+
+export async function fetchPendingDraftCount(accessToken: string) {
+    return backendFetch<{ count: number }>(
+        "/api/drafts/count?status=pending",
+        accessToken,
+    )
 }
 
 export async function fetchDrafts(
     accessToken: string,
     status?: DraftStatus,
+    options: { limit?: number; cursor?: string } = {},
 ) {
-    const query = status ? `?status=${status}` : ""
+    const params = new URLSearchParams()
+    if (status) params.set("status", status)
+    if (options.limit) params.set("limit", String(options.limit))
+    if (options.cursor) params.set("cursor", options.cursor)
+    const query = params.toString()
     return backendFetch<DraftListResponse>(
-        `/api/drafts${query}`,
+        `/api/drafts${query ? `?${query}` : ""}`,
         accessToken,
     )
 }

@@ -6,10 +6,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import CurrentUserDep, get_workflow_service
+from app.api.deps import CurrentUserDep, get_draft_repository, get_workflow_service
 from app.auth.google import GoogleCredentialsDep
+from app.core.config import Settings, get_settings
 from app.models.domain import DraftStatus
+from app.repositories.draft import DraftRepository
 from app.schemas.email import (
+    DraftCountResponse,
     DraftListResponse,
     DraftResponse,
     EditDraftRequest,
@@ -27,13 +30,43 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 async def list_drafts(
     user: CurrentUserDep,
     workflow: Annotated[WorkflowService, Depends(get_workflow_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
     status_filter: DraftStatus | None = Query(default=None, alias="status"),
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int = Query(default=None, ge=1),
+    cursor: str | None = Query(default=None),
 ) -> DraftListResponse:
-    drafts = await workflow.list_drafts(
-        user.id, status_filter=status_filter, limit=limit
+    effective_limit = min(
+        limit or settings.default_page_size,
+        settings.max_page_size,
     )
-    return DraftListResponse(count=len(drafts), drafts=drafts)
+    drafts, next_cursor, has_more = await workflow.list_drafts(
+        user.id,
+        status_filter=status_filter,
+        limit=effective_limit,
+        cursor=cursor,
+    )
+    return DraftListResponse(
+        count=len(drafts),
+        drafts=drafts,
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )
+
+
+@router.get(
+    "/count",
+    response_model=DraftCountResponse,
+    summary="Count drafts for the current user",
+)
+async def count_drafts(
+    user: CurrentUserDep,
+    draft_repo: Annotated[DraftRepository, Depends(get_draft_repository)],
+    status_filter: DraftStatus | None = Query(default=None, alias="status"),
+) -> DraftCountResponse:
+    count = await draft_repo.count_for_user(
+        user.id, status=status_filter
+    )
+    return DraftCountResponse(count=count)
 
 
 @router.get(

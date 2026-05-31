@@ -1,10 +1,11 @@
 import {
     ErrorPanel,
     PageHeader,
-    formatDate,
     syncUserWithBackend,
 } from "@/src/components/app-shell"
+import { AuditList } from "@/src/components/audit-list"
 import { searchAuditLogs } from "@/src/lib/audit"
+import { PAGE_SIZE } from "@/src/lib/pagination"
 
 export default async function AuditPage({
     searchParams,
@@ -20,7 +21,10 @@ export default async function AuditPage({
 
     const result =
         !tokenError && session.accessToken
-            ? await searchAuditLogs(session.accessToken, { subject })
+            ? await searchAuditLogs(session.accessToken, {
+                  subject,
+                  limit: PAGE_SIZE,
+              })
             : null
 
     return (
@@ -69,33 +73,12 @@ export default async function AuditPage({
                         </p>
                     </div>
                 ) : (
-                    <ul className="space-y-3">
-                        {result.data.logs.map((log) => (
-                            <li
-                                key={log.id}
-                                className="rounded-xl border border-black/[.06] bg-white p-4 dark:border-white/[.08] dark:bg-zinc-950"
-                            >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-sm font-medium capitalize">
-                                        {log.action}
-                                    </span>
-                                    <time className="text-xs text-zinc-500">
-                                        {formatDate(log.created_at)}
-                                    </time>
-                                </div>
-                                {log.subject ? (
-                                    <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                                        {log.subject}
-                                    </p>
-                                ) : null}
-                                {log.body_snapshot ? (
-                                    <p className="mt-2 line-clamp-3 text-sm text-zinc-500">
-                                        {log.body_snapshot}
-                                    </p>
-                                ) : null}
-                            </li>
-                        ))}
-                    </ul>
+                    <AuditList
+                        initialLogs={result.data.logs}
+                        initialNextCursor={result.data.next_cursor}
+                        initialHasMore={result.data.has_more}
+                        subject={subject}
+                    />
                 )}
             </div>
         </div>

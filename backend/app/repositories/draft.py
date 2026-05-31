@@ -10,6 +10,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.domain import DraftDocument, DraftStatus
 
+from app.core.pagination import cursor_filter, encode_cursor
+
 DRAFTS_COLLECTION = "draft_emails"
 
 
@@ -79,17 +81,44 @@ class DraftRepository:
         user_id: str,
         *,
         status: DraftStatus | None = None,
-        limit: int = 50,
-    ) -> list[DraftDocument]:
+        limit: int = 25,
+        cursor: str | None = None,
+    ) -> tuple[list[DraftDocument], str | None, bool]:
         query: dict = {"user_id": user_id}
         if status is not None:
             query["status"] = status.value
-        cursor = (
+        if cursor:
+            query.update(cursor_filter(cursor))
+
+        fetch_limit = limit + 1
+        db_cursor = (
             self._collection.find(query)
-            .sort("created_at", -1)
-            .limit(limit)
+            .sort([("created_at", -1), ("_id", -1)])
+            .limit(fetch_limit)
         )
-        return [_serialize_draft(doc) async for doc in cursor]
+        docs = [_serialize_draft(doc) async for doc in db_cursor]
+
+        has_more = len(docs) > limit
+        if has_more:
+            docs = docs[:limit]
+
+        next_cursor = None
+        if has_more and docs:
+            last = docs[-1]
+            next_cursor = encode_cursor(last.created_at, last.id)
+
+        return docs, next_cursor, has_more
+
+    async def count_for_user(
+        self,
+        user_id: str,
+        *,
+        status: DraftStatus | None = None,
+    ) -> int:
+        query: dict = {"user_id": user_id}
+        if status is not None:
+            query["status"] = status.value
+        return await self._collection.count_documents(query)
 
     async def update_status(
         self,

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.pagination import cursor_filter, encode_cursor
 from app.models.domain import AuditAction, AuditLogDocument
 
 AUDIT_COLLECTION = "audit_logs"
@@ -58,8 +59,9 @@ class AuditRepository:
         subject: str | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
-        limit: int = 50,
-    ) -> list[AuditLogDocument]:
+        limit: int = 25,
+        cursor: str | None = None,
+    ) -> tuple[list[AuditLogDocument], str | None, bool]:
         query: dict = {"user_id": user_id}
         if subject:
             query["subject"] = {"$regex": subject, "$options": "i"}
@@ -70,10 +72,24 @@ class AuditRepository:
             if end_date:
                 date_filter["$lte"] = end_date
             query["created_at"] = date_filter
+        if cursor:
+            query.update(cursor_filter(cursor))
 
-        cursor = (
+        fetch_limit = limit + 1
+        db_cursor = (
             self._collection.find(query)
-            .sort("created_at", -1)
-            .limit(limit)
+            .sort([("created_at", -1), ("_id", -1)])
+            .limit(fetch_limit)
         )
-        return [_serialize_log(doc) async for doc in cursor]
+        docs = [_serialize_log(doc) async for doc in db_cursor]
+
+        has_more = len(docs) > limit
+        if has_more:
+            docs = docs[:limit]
+
+        next_cursor = None
+        if has_more and docs:
+            last = docs[-1]
+            next_cursor = encode_cursor(last.created_at, last.id)
+
+        return docs, next_cursor, has_more

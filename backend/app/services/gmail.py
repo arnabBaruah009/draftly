@@ -161,17 +161,21 @@ def _list_and_fetch_messages_sync(
     access_token: str,
     limit: int,
     query: str | None = None,
-) -> list[dict[str, Any]]:
+    page_token: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     service = _build_gmail_service(access_token)
 
     list_kwargs: dict[str, Any] = {"userId": "me", "maxResults": limit}
     if query:
         list_kwargs["q"] = query
+    if page_token:
+        list_kwargs["pageToken"] = page_token
 
     list_response = service.users().messages().list(**list_kwargs).execute()
     message_refs = list_response.get("messages", []) or []
+    next_page_token = list_response.get("nextPageToken")
     if not message_refs:
-        return []
+        return [], next_page_token
 
     order = {ref["id"]: index for index, ref in enumerate(message_refs)}
     fetched: dict[str, dict[str, Any]] = {}
@@ -208,10 +212,11 @@ def _list_and_fetch_messages_sync(
     if errors and not fetched:
         raise errors[0]
 
-    return [
+    messages = [
         fetched[message_id]
         for message_id in sorted(fetched, key=lambda mid: order.get(mid, 0))
     ]
+    return messages, next_page_token
 
 
 def _list_message_ids_paginated_sync(
@@ -399,14 +404,16 @@ class GmailService:
         self,
         limit: int,
         *,
+        page_token: str | None = None,
         draft_repo: DraftRepository | None = None,
         user_id: str | None = None,
-    ) -> list[EmailSummary]:
-        raw_messages = await self._run_sync(
+    ) -> tuple[list[EmailSummary], str | None, bool]:
+        raw_messages, next_page_token = await self._run_sync(
             _list_and_fetch_messages_sync,
             self._access_token,
             limit,
             None,
+            page_token,
         )
 
         summaries: list[EmailSummary] = []
@@ -432,7 +439,8 @@ class GmailService:
                     draft_status=draft_status,
                 )
             )
-        return summaries
+        has_more = next_page_token is not None
+        return summaries, next_page_token, has_more
 
     async def list_relevant_unread(
         self,
@@ -441,11 +449,12 @@ class GmailService:
         received_after: datetime | None = None,
     ) -> list[EmailSummary]:
         query = build_relevant_email_query(received_after=received_after)
-        raw_messages = await self._run_sync(
+        raw_messages, _ = await self._run_sync(
             _list_and_fetch_messages_sync,
             self._access_token,
             limit,
             query,
+            None,
         )
         return [
             _parse_message(msg)

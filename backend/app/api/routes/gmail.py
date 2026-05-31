@@ -46,6 +46,7 @@ async def list_messages(
     settings: Annotated[Settings, Depends(get_settings)],
     draft_repo: Annotated[DraftRepository, Depends(get_draft_repository)],
     limit: int = Query(default=None, ge=1),
+    page_token: str | None = Query(default=None),
 ) -> MessagesResponse:
     effective_limit = min(
         limit or settings.default_message_limit,
@@ -53,13 +54,19 @@ async def list_messages(
     )
 
     service = GmailService(access_token=credentials.access_token)
-    messages = await service.list_latest_messages(
+    messages, next_page_token, has_more = await service.list_latest_messages(
         limit=effective_limit,
+        page_token=page_token,
         draft_repo=draft_repo,
         user_id=user.id,
     )
 
-    return MessagesResponse(count=len(messages), messages=messages)
+    return MessagesResponse(
+        count=len(messages),
+        messages=messages,
+        next_page_token=next_page_token,
+        has_more=has_more,
+    )
 
 
 @router.get(

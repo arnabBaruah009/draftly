@@ -45,12 +45,16 @@ class WorkflowService:
         user_id: str,
         *,
         status_filter: DraftStatus | None = None,
-        limit: int = 50,
-    ) -> list[DraftResponse]:
-        drafts = await self._drafts.list_for_user(
-            user_id, status=status_filter, limit=limit
+        limit: int = 25,
+        cursor: str | None = None,
+    ) -> tuple[list[DraftResponse], str | None, bool]:
+        drafts, next_cursor, has_more = await self._drafts.list_for_user(
+            user_id,
+            status=status_filter,
+            limit=limit,
+            cursor=cursor,
         )
-        return [self._to_response(d) for d in drafts]
+        return [self._to_response(d) for d in drafts], next_cursor, has_more
 
     async def edit_draft(
         self,

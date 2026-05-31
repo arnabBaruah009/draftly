@@ -33,19 +33,25 @@ export type EmailDetail = EmailSummary & {
 }
 
 export type FetchEmailsResult =
-    | { ok: true; messages: EmailSummary[]; count: number }
+    | {
+          ok: true
+          messages: EmailSummary[]
+          count: number
+          nextPageToken: string | null
+          hasMore: boolean
+      }
     | {
           ok: false
           status: number
           error: string
-          // True when the user needs to re-authenticate (token rejected or
-          // scope missing). Lets the UI show a "Sign in again" CTA.
           needsReauth: boolean
       }
 
 type MessagesResponse = {
     count: number
     messages: EmailSummary[]
+    next_page_token: string | null
+    has_more: boolean
 }
 
 /**
@@ -56,11 +62,15 @@ type MessagesResponse = {
  */
 export async function fetchLatestEmails(
     accessToken: string,
-    options: { limit?: number } = {},
+    options: { limit?: number; pageToken?: string } = {},
 ): Promise<FetchEmailsResult> {
-    const { limit = 10 } = options
+    const { limit = 25, pageToken } = options
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (pageToken) {
+        params.set("page_token", pageToken)
+    }
     const result = await backendFetch<MessagesResponse>(
-        `/api/gmail/messages?limit=${limit}`,
+        `/api/gmail/messages?${params}`,
         accessToken,
     )
     if (!result.ok) {
@@ -70,6 +80,8 @@ export async function fetchLatestEmails(
         ok: true,
         messages: result.data.messages,
         count: result.data.count,
+        nextPageToken: result.data.next_page_token,
+        hasMore: result.data.has_more,
     }
 }
 
