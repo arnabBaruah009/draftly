@@ -18,6 +18,7 @@ from app.services.ai import AIService
 from app.services.email_processor import EmailProcessor
 from app.services.embeddings import EmbeddingService
 from app.services.gmail import GmailService
+from app.services.sent_email_indexer import SentEmailIndexer
 from app.services.user import UserService
 
 router = APIRouter(prefix="/gmail", tags=["gmail"])
@@ -85,3 +86,22 @@ async def sync_inbox(
     processor = _build_email_processor(settings)
     count = await processor.process_user_inbox(user.id)
     return {"status": "ok", "processed": count}
+
+
+@router.post(
+    "/sync-sent",
+    summary="Fetch past sent emails and store embeddings for tone/style context",
+)
+async def sync_sent_emails(
+    credentials: GoogleCredentialsDep,
+    user: CurrentUserDep,
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: int | None = Query(default=None, ge=1),
+) -> dict[str, int | str]:
+    indexer = SentEmailIndexer(EmbeddingService(settings), settings)
+    result = await indexer.index_user_sent_emails(
+        user_id=user.id,
+        access_token=credentials.access_token,
+        limit=min(limit, settings.max_sent_backfill) if limit else None,
+    )
+    return {"status": "ok", **result}

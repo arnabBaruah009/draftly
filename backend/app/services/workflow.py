@@ -9,6 +9,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.draft import DraftRepository
 from app.schemas.email import DraftResponse, EditDraftRequest
 from app.services.ai import AIService
+from app.services.embeddings import EmbeddingService
 from app.services.gmail import GmailService
 from app.services.user import UserService
 
@@ -20,11 +21,13 @@ class WorkflowService:
         audit_repo: AuditRepository,
         user_service: UserService,
         ai_service: AIService,
+        embedding_service: EmbeddingService,
     ):
         self._drafts = draft_repo
         self._audit = audit_repo
         self._users = user_service
         self._ai = ai_service
+        self._embeddings = embedding_service
 
     async def get_draft(
         self, draft_id: str, user_id: str
@@ -134,13 +137,24 @@ class WorkflowService:
             )
 
         gmail = GmailService(access_token)
-        await gmail.send_reply(
+        sent_message = await gmail.send_reply(
             thread_id=draft.thread_id,
             to=draft.to or "",
             subject=draft.generated_subject or "Re:",
             body=draft.generated_body,
             in_reply_to_message_id=draft.email_id,
         )
+
+        sent_message_id = sent_message.get("id")
+        if sent_message_id:
+            self._embeddings.upsert_sent_embedding(
+                user_id=user.id,
+                email_id=sent_message_id,
+                thread_id=draft.thread_id,
+                subject=draft.generated_subject,
+                body=draft.generated_body,
+                to=draft.to,
+            )
 
         await self._drafts.update_status(
             draft_id, user.id, DraftStatus.APPROVED
@@ -186,11 +200,18 @@ class WorkflowService:
         gmail = GmailService(access_token)
         detail = await gmail.get_message_detail(draft.email_id)
 
-        body = await self._ai.generate_reply(
+        style_context = self._embeddings.get_style_context(
+            user_id=user.id,
+            subject=detail.subject,
+            thread_messages=detail.thread_messages,
+        )
+
+        body = self._ai.generate_reply(
             subject=detail.subject,
             thread_messages=detail.thread_messages,
             user_prompt=user.current_prompt,
             writing_style=user.writing_style,
+            style_examples=style_context,
         )
 
         updated = await self._drafts.update_status(

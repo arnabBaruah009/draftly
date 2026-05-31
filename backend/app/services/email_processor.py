@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class EmailProcessor:
-    """Fetch, filter, embed, and generate drafts for new emails."""
+    """Fetch, filter, and generate drafts for new emails."""
 
     def __init__(
         self,
@@ -63,12 +63,10 @@ class EmailProcessor:
                 body=detail.body,
             )
 
-            self._embeddings.upsert_email_embedding(
+            style_context = self._embeddings.get_style_context(
                 user_id=user_id,
-                email_id=summary.id,
-                thread_id=summary.thread_id,
                 subject=summary.subject,
-                body=detail.body or summary.snippet or "",
+                thread_messages=detail.thread_messages,
             )
 
             reply_body = self._ai.generate_reply(
@@ -76,6 +74,7 @@ class EmailProcessor:
                 thread_messages=detail.thread_messages,
                 user_prompt=user.current_prompt,
                 writing_style=user.writing_style,
+                style_examples=style_context,
             )
 
             await self._drafts.create(

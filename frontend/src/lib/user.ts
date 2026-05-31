@@ -49,3 +49,12 @@ export async function syncInbox(accessToken: string) {
         { method: "POST" },
     )
 }
+
+export async function syncSentEmails(accessToken: string) {
+    return backendFetch<{
+        status: string
+        total: number
+        embedded: number
+        skipped: number
+    }>("/api/gmail/sync-sent", accessToken, { method: "POST" })
+}

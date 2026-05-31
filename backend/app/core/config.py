@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     default_message_limit: int = 10
     max_message_limit: int = 50
+    max_sent_backfill: int = 500
+    style_context_top_k: int = 5
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db: str = "draftly"
@@ -52,6 +54,7 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_model: str = "openai/gpt-4o-mini"
     openai_embedding_model: str = "openai/text-embedding-3-small"
+    openai_embedding_dimension: int = 1024
     openrouter_site_url: str = "http://localhost:3000"
     openrouter_app_name: str = "Draftly"
 

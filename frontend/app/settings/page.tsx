@@ -3,7 +3,7 @@ import {
     PageHeader,
     syncUserWithBackend,
 } from "@/src/components/app-shell"
-import { updatePromptAction } from "@/src/actions/drafts"
+import { syncSentEmailsAction, updatePromptAction } from "@/src/actions/drafts"
 import { fetchCurrentUser } from "@/src/lib/user"
 
 export default async function SettingsPage() {
@@ -42,10 +42,31 @@ export default async function SettingsPage() {
                         needsReauth={profileResult.needsReauth}
                     />
                 ) : (
-                    <form
-                        action={updatePromptAction}
-                        className="space-y-5 rounded-2xl border border-black/[.06] bg-white p-6 dark:border-white/[.08] dark:bg-zinc-950"
-                    >
+                    <div className="space-y-6">
+                        <section className="rounded-2xl border border-black/[.06] bg-white p-6 dark:border-white/[.08] dark:bg-zinc-950">
+                            <h2 className="text-sm font-semibold">
+                                Writing style from sent mail
+                            </h2>
+                            <p className="mt-1 text-xs text-zinc-500">
+                                Import your past sent emails so the AI can match
+                                your tone when drafting replies. Run this once
+                                after signing in, then again if you want to
+                                refresh your style profile.
+                            </p>
+                            <form action={syncSentEmailsAction} className="mt-4">
+                                <button
+                                    type="submit"
+                                    className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
+                                >
+                                    Sync sent emails
+                                </button>
+                            </form>
+                        </section>
+
+                        <form
+                            action={updatePromptAction}
+                            className="space-y-5 rounded-2xl border border-black/[.06] bg-white p-6 dark:border-white/[.08] dark:bg-zinc-950"
+                        >
                         <div>
                             <label
                                 htmlFor="current_prompt"
@@ -95,7 +116,8 @@ export default async function SettingsPage() {
                         >
                             Save preferences
                         </button>
-                    </form>
+                        </form>
+                    </div>
                 )}
             </div>
         </div>

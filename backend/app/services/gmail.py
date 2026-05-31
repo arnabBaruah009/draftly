@@ -34,6 +34,10 @@ RELEVANT_EMAIL_QUERY = (
     "-category:promotions -category:social -label:spam"
 )
 
+SENT_EMAIL_QUERY = (
+    "in:sent -category:promotions -category:social -label:spam"
+)
+
 
 def _build_gmail_service(access_token: str):
     credentials = Credentials(token=access_token)
@@ -198,6 +202,84 @@ def _list_and_fetch_messages_sync(
     ]
 
 
+def _list_message_ids_paginated_sync(
+    access_token: str,
+    *,
+    query: str,
+    max_messages: int,
+) -> list[str]:
+    service = _build_gmail_service(access_token)
+    message_ids: list[str] = []
+    page_token: str | None = None
+
+    while len(message_ids) < max_messages:
+        page_size = min(500, max_messages - len(message_ids))
+        list_kwargs: dict[str, Any] = {
+            "userId": "me",
+            "maxResults": page_size,
+            "q": query,
+        }
+        if page_token:
+            list_kwargs["pageToken"] = page_token
+
+        list_response = service.users().messages().list(**list_kwargs).execute()
+        refs = list_response.get("messages", []) or []
+        message_ids.extend(ref["id"] for ref in refs)
+
+        page_token = list_response.get("nextPageToken")
+        if not page_token or not refs:
+            break
+
+    return message_ids[:max_messages]
+
+
+def _batch_get_messages_full_sync(
+    access_token: str,
+    message_ids: list[str],
+    *,
+    batch_size: int = 50,
+) -> list[dict[str, Any]]:
+    if not message_ids:
+        return []
+
+    service = _build_gmail_service(access_token)
+    fetched: dict[str, dict[str, Any]] = {}
+    errors: list[HttpError] = []
+
+    for offset in range(0, len(message_ids), batch_size):
+        chunk = message_ids[offset : offset + batch_size]
+
+        def _on_response(
+            request_id: str,
+            response: dict[str, Any] | None,
+            exception: HttpError | None,
+        ) -> None:
+            if exception is not None:
+                errors.append(exception)
+                return
+            if response is not None:
+                fetched[request_id] = response
+
+        batch: BatchHttpRequest = service.new_batch_http_request(
+            callback=_on_response
+        )
+        for message_id in chunk:
+            batch.add(
+                service.users().messages().get(
+                    userId="me",
+                    id=message_id,
+                    format="full",
+                ),
+                request_id=message_id,
+            )
+        batch.execute()
+
+    if errors and not fetched:
+        raise errors[0]
+
+    return [fetched[message_id] for message_id in message_ids if message_id in fetched]
+
+
 def _get_message_full_sync(access_token: str, message_id: str) -> dict[str, Any]:
     service = _build_gmail_service(access_token)
     return (
@@ -354,6 +436,39 @@ class GmailService:
             for msg in raw_messages
             if not _is_filtered_label(msg.get("labelIds", []) or [])
         ]
+
+    async def list_sent_for_indexing(self, limit: int = 500) -> list[EmailDetail]:
+        """Fetch sent messages with bodies, ready for vector indexing."""
+        message_ids = await self._run_sync(
+            _list_message_ids_paginated_sync,
+            self._access_token,
+            query=SENT_EMAIL_QUERY,
+            max_messages=limit,
+        )
+        raw_messages = await self._run_sync(
+            _batch_get_messages_full_sync,
+            self._access_token,
+            message_ids,
+        )
+
+        details: list[EmailDetail] = []
+        for message in raw_messages:
+            label_ids = message.get("labelIds", []) or []
+            if _is_filtered_label(label_ids):
+                continue
+            if "SENT" not in label_ids:
+                continue
+
+            payload = message.get("payload", {}) or {}
+            summary = _parse_message(message)
+            details.append(
+                EmailDetail(
+                    **summary.model_dump(by_alias=True),
+                    body=_extract_body(payload),
+                    thread_messages=[],
+                )
+            )
+        return details
 
     async def get_message_detail(self, message_id: str) -> EmailDetail:
         message = await self._run_sync(

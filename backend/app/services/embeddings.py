@@ -1,4 +1,4 @@
-"""Pinecone vector store for email embeddings via OpenRouter."""
+"""Pinecone vector store for sent-email embeddings via OpenRouter."""
 
 from __future__ import annotations
 
@@ -9,12 +9,16 @@ from datetime import datetime, timezone
 from pinecone import Pinecone, ServerlessSpec
 
 from app.core.config import Settings, get_settings
+from app.schemas.email import ThreadMessage
 from app.services.openrouter import get_openrouter_client
 
 logger = logging.getLogger(__name__)
 
 _pinecone_client: Pinecone | None = None
 _index = None
+
+SENT_KIND = "sent"
+_METADATA_BODY_MAX_CHARS = 2000
 
 
 def _embedding_id(user_id: str, email_id: str) -> str:
@@ -23,7 +27,7 @@ def _embedding_id(user_id: str, email_id: str) -> str:
 
 
 class EmbeddingService:
-    """Generate embeddings through OpenRouter and store them in Pinecone."""
+    """Generate embeddings through OpenRouter and store sent emails in Pinecone."""
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
@@ -45,7 +49,7 @@ class EmbeddingService:
         if index_name not in existing:
             _pinecone_client.create_index(
                 name=index_name,
-                dimension=1536,
+                dimension=self._settings.openai_embedding_dimension,
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud=self._settings.pinecone_cloud,
@@ -64,10 +68,20 @@ class EmbeddingService:
         response = self._client.embeddings.create(
             model=self._settings.openai_embedding_model,
             input=text[:8000],
+            dimensions=self._settings.openai_embedding_dimension,
         )
-        return response.data[0].embedding
+        vector = response.data[0].embedding
+        expected = self._settings.openai_embedding_dimension
+        if len(vector) != expected:
+            logger.error(
+                "Embedding dimension mismatch: got %s, expected %s",
+                len(vector),
+                expected,
+            )
+            return []
+        return vector
 
-    def upsert_email_embedding(
+    def upsert_sent_embedding(
         self,
         *,
         user_id: str,
@@ -75,7 +89,9 @@ class EmbeddingService:
         thread_id: str,
         subject: str | None,
         body: str,
+        to: str | None = None,
     ) -> str | None:
+        """Store a sent email embedding for tone/style retrieval."""
         index = self._ensure_index()
         if index is None:
             return None
@@ -96,7 +112,10 @@ class EmbeddingService:
                         "userId": user_id,
                         "emailId": email_id,
                         "threadId": thread_id,
-                        "subject": subject or "",
+                        "subject": (subject or "")[:500],
+                        "body": body[:_METADATA_BODY_MAX_CHARS],
+                        "to": (to or "")[:500],
+                        "kind": SENT_KIND,
                         "createdAt": datetime.now(timezone.utc).isoformat(),
                     },
                 }
@@ -104,12 +123,12 @@ class EmbeddingService:
         )
         return vector_id
 
-    def search_similar(
+    def search_similar_sent(
         self,
         *,
         user_id: str,
         query: str,
-        top_k: int = 5,
+        top_k: int | None = None,
     ) -> list[dict]:
         index = self._ensure_index()
         if index is None:
@@ -119,11 +138,15 @@ class EmbeddingService:
         if not vector:
             return []
 
+        effective_top_k = top_k or self._settings.style_context_top_k
         results = index.query(
             vector=vector,
-            top_k=top_k,
+            top_k=effective_top_k,
             include_metadata=True,
-            filter={"userId": {"$eq": user_id}},
+            filter={
+                "userId": {"$eq": user_id},
+                "kind": {"$eq": SENT_KIND},
+            },
         )
         return [
             {
@@ -133,3 +156,28 @@ class EmbeddingService:
             }
             for match in results.matches
         ]
+
+    def get_style_context(
+        self,
+        *,
+        user_id: str,
+        subject: str | None,
+        thread_messages: list[ThreadMessage],
+        top_k: int | None = None,
+    ) -> list[dict]:
+        """Retrieve relevant past sent emails to inform reply tone and style."""
+        latest = thread_messages[-1] if thread_messages else None
+        query_parts = [
+            subject or "",
+            latest.body if latest else "",
+            latest.subject if latest else "",
+        ]
+        query = "\n".join(part.strip() for part in query_parts if part and part.strip())
+        if not query:
+            return []
+
+        return self.search_similar_sent(
+            user_id=user_id,
+            query=query,
+            top_k=top_k,
+        )

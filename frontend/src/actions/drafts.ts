@@ -85,3 +85,14 @@ export async function syncInboxAction() {
     revalidatePath("/")
     revalidatePath("/drafts")
 }
+
+export async function syncSentEmailsAction() {
+    const session = await auth()
+    if (!session?.accessToken || session.error) {
+        throw new Error("Not authenticated")
+    }
+    const { syncSentEmails } = await import("@/src/lib/user")
+    const result = await syncSentEmails(session.accessToken)
+    if (!result.ok) throw new Error(result.error)
+    revalidatePath("/settings")
+}

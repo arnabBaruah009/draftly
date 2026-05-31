@@ -15,6 +15,7 @@ from app.repositories.draft import DraftRepository
 from app.repositories.email_record import EmailRecordRepository
 from app.repositories.user import TokenStore, UserRepository
 from app.services.ai import AIService
+from app.services.embeddings import EmbeddingService
 from app.services.user import UserService
 from app.services.workflow import WorkflowService
 
@@ -63,6 +64,7 @@ def get_workflow_service(
             settings,
         ),
         AIService(settings),
+        EmbeddingService(settings),
     )
 
 
